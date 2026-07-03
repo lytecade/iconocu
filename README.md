@@ -1,22 +1,32 @@
 # Iconocu
 
-## Overview
-**Iconocu** is a modern HTML5 game inspired by the classic puzzle Sudoku, challenging players to arrange different fruit icons so that each row, column, and square contains a unique icon. As levels advance, puzzles become more complex for a continually engaging experience. 
+Iconocu is a blocky, pixel-art re-invention of Sudoku. Instead of numbers, players use a curated palette of colors to fill a 9x9 grid based on classic Sudoku logic.
 
-The game is built entirely with JavaScript and HTML5 for smooth play in any modern browser.
+## Game Rules
+The objective is to fill the 9x9 grid such that:
+1. Each **row** contains every color exactly once.
+2. Each **column** contains every color exactly once.
+3. Each **3x3 sub-grid** contains every color exactly once.
 
-## Features
-- **Familiar Sudoku logic** with a twist: Instead of numbers, use nine distinct colorful icon images.
-- **Increasing difficulty**: Puzzles get harder as the game progresses, testing logical thinking and keen pattern recognition.
-- **Responsive design**: Play seamlessly across desktops, tablets, and mobile devices.
-- **Intuitive drag-and-drop controls** for icon placement.
-- **Bright, engaging visuals** and playful interface to keep players entertained.
+## How to Play
 
-## Gameplay
-- The objective is to fill the nine squares (3x3) of the grid so each row, column, and square contains one of each fruit.
-- No fruit repeats in any row, column, or square. Use logic familiar from classic Sudoku to deduce correct fruit placements.
-- Enjoy escalating challenges as you advance through levels and more intricate fruit arrangements.
+### Getting Started
+- Run the local server: `python3 server.py`
+- Open `http://localhost:8000` in your browser.
+- Press **Enter** to start a new game.
 
-***
+### Controls
+| Key | Action (Board Focus) | Action (Palette Focus) |
+| :--- | :--- | :--- |
+| **Arrow Keys** | Move selection cursor | Cycle through colors |
+| **Tab** | Switch focus to Palette | Switch focus to Board |
+| **Enter** | Place selected color in cell | Confirm color and switch to Board |
 
-_Enjoy Iconocu and discover a whole new way to play Sudoku—one fruit at a time!_
+### Gameplay Tips
+- **Validation**: If you attempt to place a color that violates Sudoku rules, a red **X** will blink on the cell to warn you.
+- **Winning**: The game is won when the entire board is filled correctly.
+
+## Technical Details
+- **Graphics**: HTML5 Canvas with `pixelated` image rendering.
+- **Color Palette**: Arne16 color scheme.
+- **Language**: JavaScript (Frontend), Python (Local Server).
