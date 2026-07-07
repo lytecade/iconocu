@@ -108,6 +108,22 @@ function draw() {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Define Layout Constants
+    const PADDING = 20;
+    const TEXT_HEIGHT = 60; // Space reserved for text at the top
+    const PALETTE_HEIGHT = 60; // Space reserved for palette at the bottom
+    
+    let gridWidth = canvas.width - (2 * PADDING);
+    let gridHeight = canvas.height - TEXT_HEIGHT - PALETTE_HEIGHT - (2 * PADDING);
+
+    // Ensure square aspect ratio for the grid
+    const gridSize = Math.min(gridWidth, gridHeight);
+    const cellSize = gridSize / SIZE;
+    
+    // Calculate grid top-left position
+    const gridX = (canvas.width - gridSize) / 2;
+    const gridY = PADDING + TEXT_HEIGHT;
+
     if (gameState === 'START') {
         ctx.fillStyle = '#ffffff';
         ctx.font = `${canvas.width * 0.05}px monospace`;
@@ -116,81 +132,123 @@ function draw() {
         ctx.font = `${canvas.width * 0.03}px monospace`;
         ctx.fillText('Press Enter to Start', canvas.width / 2, canvas.height * 0.6);
     } else if (gameState === 'PLAYING') {
-        const cellSize = canvas.width / SIZE;
         
+        // 1. Draw UI Text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${canvas.width * 0.02}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText(`FOCUS: ${focus}`, PADDING, 30);
+        ctx.fillText('Tab to switch focus', PADDING, 50);
+
+        // 2. Draw Board Grid Background (Subtle container)
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(gridX, gridY, gridSize, gridSize);
+
+        // 3. Draw Grid Lines
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         for (let i = 0; i <= SIZE; i++) {
+            // Vertical lines
             ctx.beginPath();
-            ctx.moveTo(i * cellSize, 0);
-            ctx.lineTo(i * cellSize, canvas.height);
+            ctx.moveTo(gridX + (i * cellSize), gridY);
+            ctx.lineTo(gridX + (i * cellSize), gridY + gridSize);
             ctx.stroke();
+            
+            // Horizontal lines
             ctx.beginPath();
-            ctx.moveTo(0, i * cellSize);
-            ctx.lineTo(canvas.width, i * cellSize);
+            ctx.moveTo(gridX, gridY + (i * cellSize));
+            ctx.lineTo(gridX + gridSize, gridY + (i * cellSize));
             ctx.stroke();
         }
         
+        // 4. Draw Thick Box Lines
         ctx.lineWidth = 6;
         for (let i = 0; i <= SIZE; i += BOX_SIZE) {
+            // Vertical
             ctx.beginPath();
-            ctx.moveTo(i * cellSize, 0);
-            ctx.lineTo(i * cellSize, canvas.height);
+            ctx.moveTo(gridX + (i * cellSize), gridY);
+            ctx.lineTo(gridX + (i * cellSize), gridY + gridSize);
             ctx.stroke();
+            
+            // Horizontal
             ctx.beginPath();
-            ctx.moveTo(0, i * cellSize);
-            ctx.lineTo(canvas.width, i * cellSize);
+            ctx.moveTo(gridX, gridY + (i * cellSize));
+            ctx.lineTo(gridX + gridSize, gridY + (i * cellSize));
             ctx.stroke();
         }
 
+        // 5. Draw Cells and Selection
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
+                // Draw filled cells
                 if (board[r][c] !== 0) {
                     ctx.fillStyle = COLORS[board[r][c] - 1];
-                    ctx.fillRect(c * cellSize + 4, r * cellSize + 4, cellSize - 8, cellSize - 8);
+                    // Add small padding inside cell
+                    ctx.fillRect(
+                        gridX + (c * cellSize) + 4, 
+                        gridY + (r * cellSize) + 4, 
+                        cellSize - 8, 
+                        cellSize - 8
+                    );
                 }
+                
+                // Draw selection box
                 if (selectedCell.r === r && selectedCell.c === c) {
                     ctx.strokeStyle = focus === 'BOARD' ? '#ffffff' : '#9d9d9d';
                     ctx.lineWidth = 4;
-                    ctx.strokeRect(c * cellSize + 2, r * cellSize + 2, cellSize - 4, cellSize - 4);
+                    ctx.strokeRect(
+                        gridX + (c * cellSize) + 2, 
+                        gridY + (r * cellSize) + 2, 
+                        cellSize - 4, 
+                        cellSize - 4
+                    );
                 }
             }
         }
 
+        // 6. Draw Error Indicator
         if (errorTimer > 0) {
             if (Math.floor(Date.now() / 100) % 2 === 0) {
                 ctx.strokeStyle = '#ff0000';
                 ctx.lineWidth = 4;
-                const x = errorCell.c * cellSize;
-                const y = errorCell.r * cellSize;
+                const ex = gridX + (errorCell.c * cellSize);
+                const ey = gridY + (errorCell.r * cellSize);
+                
                 ctx.beginPath();
-                ctx.moveTo(x + cellSize * 0.3, y + cellSize * 0.3);
-                ctx.lineTo(x + cellSize * 0.7, y + cellSize * 0.7);
-                ctx.moveTo(x + cellSize * 0.7, y + cellSize * 0.3);
-                ctx.lineTo(x + cellSize * 0.3, y + cellSize * 0.7);
+                ctx.moveTo(ex + cellSize * 0.3, ey + cellSize * 0.3);
+                ctx.lineTo(ex + cellSize * 0.7, ey + cellSize * 0.7);
+                ctx.moveTo(ex + cellSize * 0.7, ey + cellSize * 0.3);
+                ctx.lineTo(ex + cellSize * 0.3, ey + cellSize * 0.7);
                 ctx.stroke();
             }
             errorTimer--;
         }
 
-        const paletteY = canvas.height - 60;
-        const paletteWidth = canvas.width / 9;
+        // 7. Draw Palette (Bottom)
+        const paletteY = canvas.height - PALETTE_HEIGHT + (PALETTE_HEIGHT - 40) / 2;
+        const paletteWidth = gridSize / 9; // Match palette width to grid width
+        
         for (let i = 0; i < 9; i++) {
             ctx.fillStyle = COLORS[i];
-            ctx.fillRect(i * paletteWidth + 5, paletteY, paletteWidth - 10, 40);
+            ctx.fillRect(
+                gridX + (i * paletteWidth) + 5, 
+                paletteY, 
+                paletteWidth - 10, 
+                40
+            );
             if (selectedColorIdx === i) {
                 ctx.strokeStyle = focus === 'PALETTE' ? '#ffffff' : '#9d9d9d';
                 ctx.lineWidth = 4;
-                ctx.strokeRect(i * paletteWidth + 2, paletteY - 2, paletteWidth - 4, 44);
+                ctx.strokeRect(
+                    gridX + (i * paletteWidth) + 2, 
+                    paletteY - 2, 
+                    paletteWidth - 4, 
+                    44
+                );
             }
         }
         
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `${canvas.width * 0.02}px monospace`;
-        ctx.textAlign = 'left';
-        ctx.fillText(`FOCUS: ${focus}`, 10, 20);
-        ctx.fillText('Tab to switch focus', 10, 40);
-
     } else if (gameState === 'SUCCESS') {
         ctx.fillStyle = '#ffffff';
         ctx.font = `${canvas.width * 0.05}px monospace`;
@@ -258,3 +316,4 @@ window.addEventListener('keydown', (e) => {
 });
 
 draw();
+
