@@ -16,6 +16,7 @@ let solution = [];
 let selectedCell = { r: -1, c: -1 };
 let selectedColorIdx = 0;
 let focus = 'BOARD'; // 'BOARD' or 'PALETTE'
+let otherFocus = focus === 'BOARD' ? 'PALETTE' : 'BOARD';
 let errorCell = { r: -1, c: -1 };
 let errorTimer = 0;
 
@@ -138,7 +139,7 @@ function draw() {
         ctx.font = `${canvas.width * 0.02}px monospace`;
         ctx.textAlign = 'left';
         ctx.fillText(`FOCUS: ${focus}`, PADDING, 30);
-        ctx.fillText('Tab to switch focus', PADDING, 50);
+        ctx.fillText(`Press <Tab> for ${otherFocus}`, PADDING, 50);
 
         // 2. Draw Board Grid Background (Subtle container)
         ctx.strokeStyle = '#333333';
@@ -270,6 +271,7 @@ window.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
             e.preventDefault();
             focus = focus === 'BOARD' ? 'PALETTE' : 'BOARD';
+            otherFocus = focus === 'BOARD' ? 'PALETTE' : 'BOARD';
             return;
         }
 
@@ -299,6 +301,7 @@ window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowRight') selectedColorIdx = (selectedColorIdx + 1) % 9;
             if (e.key === 'Enter') {
                 focus = 'BOARD';
+                otherFocus = focus === 'BOARD' ? 'PALETTE' : 'BOARD';
             }
         }
 
