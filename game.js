@@ -166,7 +166,7 @@ function draw() {
         }
         
         // 4. Draw Thick Box Lines
-        ctx.lineWidth = 6;
+        ctx.lineWidth = 8;
         for (let i = 0; i <= SIZE; i += BOX_SIZE) {
             // Vertical
             ctx.beginPath();
@@ -187,19 +187,22 @@ function draw() {
                 // Draw filled cells
                 if (board[r][c] !== 0) {
                     ctx.fillStyle = COLORS[board[r][c] - 1];
-                    // Add small padding inside cell
+                    const leftPadding = (c % 3 === 0) ? 7 : 5;
+                    const rightPadding = ((c + 1) % 3 === 0) ? 7 : 5;
+                    const topPadding = (r % 3 === 0) ? 7 : 5;
+                    const bottomPadding = ((r + 1) % 3 === 0) ? 7 : 5;
                     ctx.fillRect(
-                        gridX + (c * cellSize) + 6, 
-                        gridY + (r * cellSize) + 6, 
-                        cellSize - 12, 
-                        cellSize - 12
+                        gridX + (c * cellSize) + leftPadding, 
+                        gridY + (r * cellSize) + topPadding, 
+                        cellSize - leftPadding - rightPadding, 
+                        cellSize - topPadding - bottomPadding
                     );
                 }
                 
                 // Draw selection box
                 if (selectedCell.r === r && selectedCell.c === c) {
-                    ctx.strokeStyle = focus === 'BOARD' ? '#ffffff' : '#9d9d9d';
-                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = focus === 'BOARD' ? '#A46422' : '#9d9d9d';
+		    ctx.lineWidth = 8;
                     ctx.strokeRect(
                         gridX + (c * cellSize) + 2, 
                         gridY + (r * cellSize) + 2, 
@@ -214,7 +217,7 @@ function draw() {
         if (errorTimer > 0) {
             if (Math.floor(Date.now() / 100) % 2 === 0) {
                 ctx.strokeStyle = '#ff0000';
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 8;
                 const ex = gridX + (errorCell.c * cellSize);
                 const ey = gridY + (errorCell.r * cellSize);
                 
@@ -241,8 +244,8 @@ function draw() {
                 40
             );
             if (selectedColorIdx === i) {
-                ctx.strokeStyle = focus === 'PALETTE' ? '#ffffff' : '#9d9d9d';
-                ctx.lineWidth = 4;
+                ctx.strokeStyle = focus === 'PALETTE' ? '#A46422' : '#9d9d9d';
+                ctx.lineWidth = 8;
                 ctx.strokeRect(
                     gridX + (i * paletteWidth) + 2, 
                     paletteY - 2, 
