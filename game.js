@@ -106,7 +106,7 @@ function startNewGame() {
 }
 
 function draw() {
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#1b2632';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Define Layout Constants
@@ -114,7 +114,7 @@ function draw() {
     const TEXT_HEIGHT = 60; // Space reserved for text at the top
     const PALETTE_HEIGHT = 60; // Space reserved for palette at the bottom
     
-    let gridWidth = canvas.width - (2 * PADDING);
+    let gridWidth = canvas.width;
     let gridHeight = canvas.height - TEXT_HEIGHT - PALETTE_HEIGHT - (2 * PADDING);
 
     // Ensure square aspect ratio for the grid
@@ -142,6 +142,8 @@ function draw() {
         ctx.fillText(`Press <Tab> for ${otherFocus}`, PADDING, 50);
 
         // 2. Draw Board Grid Background (Subtle container)
+        ctx.fillStyle = '#2f484e';
+        ctx.fillRect(gridX, gridY, gridSize, gridSize);
         ctx.strokeStyle = '#333333';
         ctx.lineWidth = 2;
         ctx.strokeRect(gridX, gridY, gridSize, gridSize);
@@ -187,10 +189,10 @@ function draw() {
                     ctx.fillStyle = COLORS[board[r][c] - 1];
                     // Add small padding inside cell
                     ctx.fillRect(
-                        gridX + (c * cellSize) + 4, 
-                        gridY + (r * cellSize) + 4, 
-                        cellSize - 8, 
-                        cellSize - 8
+                        gridX + (c * cellSize) + 6, 
+                        gridY + (r * cellSize) + 6, 
+                        cellSize - 12, 
+                        cellSize - 12
                     );
                 }
                 
