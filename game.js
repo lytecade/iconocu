@@ -202,7 +202,7 @@ function draw() {
                 // Draw selection box
                 if (selectedCell.r === r && selectedCell.c === c) {
                     ctx.strokeStyle = focus === 'BOARD' ? '#FFFFFF' : '#9d9d9d';
-		    ctx.lineWidth = 8;
+		    ctx.lineWidth = 10;
                     ctx.strokeRect(
                         gridX + (c * cellSize) + 2, 
                         gridY + (r * cellSize) + 2, 
