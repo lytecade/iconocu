@@ -201,7 +201,7 @@ function draw() {
                 
                 // Draw selection box
                 if (selectedCell.r === r && selectedCell.c === c) {
-                    ctx.strokeStyle = focus === 'BOARD' ? '#A46422' : '#9d9d9d';
+                    ctx.strokeStyle = focus === 'BOARD' ? '#FFFFFF' : '#9d9d9d';
 		    ctx.lineWidth = 8;
                     ctx.strokeRect(
                         gridX + (c * cellSize) + 2, 
@@ -244,7 +244,7 @@ function draw() {
                 40
             );
             if (selectedColorIdx === i) {
-                ctx.strokeStyle = focus === 'PALETTE' ? '#A46422' : '#9d9d9d';
+                ctx.strokeStyle = focus === 'PALETTE' ? '#FFFFFF' : '#9d9d9d';
                 ctx.lineWidth = 8;
                 ctx.strokeRect(
                     gridX + (i * paletteWidth) + 2, 
