@@ -1,32 +1,57 @@
-# Iconocu
+# Ikonoku
 
-Iconocu is a blocky, pixel-art re-invention of Sudoku. Instead of numbers, players use a curated palette of colors to fill a 9x9 grid based on classic Sudoku logic.
+An arcade-style cyberpunk Sudoku game that replaces numbers with **9 unique color blocks**.
 
-## Game Rules
-The objective is to fill the 9x9 grid such that:
-1. Each **row** contains every color exactly once.
-2. Each **column** contains every color exactly once.
-3. Each **3x3 sub-grid** contains every color exactly once.
+## Overview
+
+Ikonoku is a logic puzzle where you fill a 9×9 grid with color blocks. Each row, column, and 3×3 section must contain every unique color block exactly once — no math required, just pure logic.
 
 ## How to Play
 
-### Getting Started
-- Run the local server: `python3 server.py`
-- Open `http://localhost:8000` in your browser.
-- Press **Enter** to start a new game.
+1. **Open** `index.html` in any modern browser
+2. **Title Screen** — Press a key, click, or tap to begin
+3. **Choose Difficulty** — Easy, Medium, or Hard
+4. **Select a Color** — Tap/click or use arrow keys + Enter to pick one of the 9 color blocks
+5. **Place It** — Tap/click a grid cell or navigate with arrow keys and press Enter/Space
+6. **Complete the Grid** — Fill all empty cells to win!
 
-### Controls
-| Key | Action (Board Focus) | Action (Palette Focus) |
-| :--- | :--- | :--- |
-| **Arrow Keys** | Move selection cursor | Cycle through colors |
-| **Tab** | Switch focus to Palette | Switch focus to Board |
-| **Enter** | Place selected color in cell | Confirm color and switch to Board |
+## Controls
 
-### Gameplay Tips
-- **Validation**: If you attempt to place a color that violates Sudoku rules, a red **X** will blink on the cell to warn you.
-- **Winning**: The game is won when the entire board is filled correctly.
+| Action | Mouse/Touch | Keyboard |
+|---|---|---|
+| Navigate cells | Click/tap cell | Arrow keys |
+| Select color | Click/tap color block | Arrow keys + Enter |
+| Place color | Click/tap cell after selecting color | Space / Enter |
+| Start game | Click/tap/press any key | Any key |
+| Confirm difficulty | Click/tap difficulty | Arrow keys + Enter |
+
+## Color Scheme
+
+Uses the **Arne16** palette exclusively:
+
+| Hex | Role |
+|---|---|
+| `#000000` | Deep black |
+| `#9D9D9D` | Mid gray |
+| `#FFFFFF` | White |
+| `#BE2633` | Crimson (Game Color 1) |
+| `#E06F8B` | Rose (Game Color 2) |
+| `#493C2B` | Brown |
+| `#A46422` | Amber (Game Color 3) |
+| `#EB8931` | Orange (Game Color 4) |
+| `#F7E26B` | Yellow (Game Color 5) |
+| `#2F484E` | Slate (Background) |
+| `#44891A` | Green (Game Color 6) |
+| `#A3CE27` | Lime (Game Color 7) |
+| `#1B2632` | Navy (Dark BG) |
+| `#005784` | Steel Blue (Game Color 8) |
+| `#31A2F2` | Sky Blue (Game Color 9) |
+| `#B2DCF0` | Ice Blue |
 
 ## Technical Details
-- **Graphics**: HTML5 Canvas with `pixelated` image rendering.
-- **Color Palette**: Arne16 color scheme.
-- **Language**: JavaScript (Frontend), Python (Local Server).
+
+- **No external libraries** — pure HTML5 Canvas + JavaScript
+- **Responsive** — canvas scales to maximum browser fit while remaining square
+- **Mobile-friendly** — full touch support alongside keyboard controls
+- **Three difficulty levels** affecting the number of pre-filled cells
+
