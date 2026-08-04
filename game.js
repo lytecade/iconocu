@@ -1,134 +1,262 @@
-// ============================================================
-// Ikonoku — Cyberpunk Color Sudoku
-// Pure HTML5 Canvas + JavaScript, no external libraries
-// ============================================================
+/* ═══════════════════════════════════════════════════════════
+   I K O N O K U  —  Gem Sudoku Arcade
+   ═══════════════════════════════════════════════════════════ */
 
 (function () {
   "use strict";
 
-  // ---- Polyfill: roundRect ----
-  if (!CanvasRenderingContext2D.prototype.roundRect) {
-    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-      if (typeof r === "number") r = [r, r, r, r];
-      var rtl = r[0] || 0, rtr = r[1] || 0, rbr = r[2] || 0, rbl = r[3] || 0;
-      this.moveTo(x + rtl, y);
-      this.lineTo(x + w - rtr, y);
-      this.quadraticCurveTo(x + w, y, x + w, y + rtr);
-      this.lineTo(x + w, y + h - rbr);
-      this.quadraticCurveTo(x + w, y + h, x + w - rbr, y + h);
-      this.lineTo(x + rbl, y + h);
-      this.quadraticCurveTo(x, y + h, x, y + h - rbl);
-      this.lineTo(x, y + rtl);
-      this.quadraticCurveTo(x, y, x + rtl, y);
-      this.closePath();
-      return this;
-    };
-  }
-
-  // ---- Arne16 Palette ----
-  var COLORS = {
-    black:       "#000000",
-    gray:        "#9D9D9D",
-    white:       "#FFFFFF",
-    crimson:     "#BE2633",
-    rose:        "#E06F8B",
-    brown:       "#493C2B",
-    amber:       "#A46422",
-    orange:      "#EB8931",
-    yellow:      "#F7E26B",
-    slate:       "#2F484E",
-    green:       "#44891A",
-    lime:        "#A3CE27",
-    navy:        "#1B2632",
-    steelBlue:   "#005784",
-    skyBlue:     "#31A2F2",
-    iceBlue:     "#B2DCF0",
+  // ── Arne16 Palette ──────────────────────────────────────
+  const C = {
+    black:     "#000000",
+    gray:      "#9D9D9D",
+    white:     "#FFFFFF",
+    red:       "#BE2633",
+    pink:      "#E06F8B",
+    brown:     "#493C2B",
+    amber:     "#A46422",
+    orange:    "#EB8931",
+    yellow:    "#F7E26B",
+    teal:      "#2F484E",
+    green:     "#44891A",
+    lime:      "#A3CE27",
+    navy:      "#1B2632",
+    dkBlue:    "#005784",
+    blue:      "#31A2F2",
+    ltBlue:    "#B2DCFF",
   };
 
-  // 9 playable color blocks
-  var GAME_COLORS = [
-    COLORS.crimson,   // 1
-    COLORS.rose,       // 2
-    COLORS.amber,      // 3
-    COLORS.orange,     // 4
-    COLORS.yellow,     // 5
-    COLORS.green,      // 6
-    COLORS.lime,       // 7
-    COLORS.steelBlue,  // 8
-    COLORS.skyBlue,    // 9
+  // 9 gem colors (one per value 1-9)
+  const GEM_COLORS = [
+    C.red,    C.orange, C.yellow, C.green, C.blue,
+    C.pink,   C.amber,  C.lime,   C.ltBlue
   ];
 
-  // ---- Game States ----
-  var STATE_TITLE = 0;
-  var STATE_DIFFICULTY = 1;
-  var STATE_PLAYING = 2;
-  var STATE_WIN = 3;
+  // ── Canvas Setup ────────────────────────────────────────
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
 
-  // ---- Difficulty Config ----
-  var DIFF_CONFIG = {
-    Easy:   { removed: 30, label: "EASY" },
-    Medium: { removed: 45, label: "MEDIUM" },
-    Hard:   { removed: 55, label: "HARD" },
-  };
-  var DIFF_KEYS = ["Easy", "Medium", "Hard"];
-  var DIFF_LABELS = ["EASY", "MEDIUM", "HARD"];
-  var DIFF_DESCS  = ["~51 clues shown", "~36 clues shown", "~26 clues shown"];
-  var DIFF_COLORS = [COLORS.lime, COLORS.orange, COLORS.crimson];
+  let W, H; // canvas dimensions (always square)
 
-  // ---- Canvas & Context ----
-  var canvas = document.getElementById("game");
-  var ctx = canvas.getContext("2d");
+  function resize() {
+    const s = Math.min(window.innerWidth, window.innerHeight);
+    W = H = s;
+    canvas.width = W;
+    canvas.height = H;
+    render();
+  }
+  window.addEventListener("resize", resize);
 
-  // ---- Game State Variables ----
-  var gameState = STATE_TITLE;
-  var difficulty = "Medium";
-  var solvedBoard = [];
-  var puzzleBoard = [];
-  var initialBoard = [];
-  var cellGrid = [];
+  // ── Screen State ────────────────────────────────────────
+  // STATES: "BOOT" | "TITLE" | "DIFFICULTY" | "PLAY" | "END"
+  let state = "BOOT";
+  let difficulty = "MEDIUM";
+  let puzzle = [];     // 9x9 solution
+  let given = [];      // 9x9 boolean (true = pre-filled)
+  let board = [];      // 9x9 current player board
+  let selectedGem = 1; // currently selected gem value (1-9)
+  let cursorRow = 0, cursorCol = 0;
+  let filledCount = 0;
+  let totalEmpty = 0;
+  let difficultyChoices = ["EASY", "MEDIUM", "HARD"];
+  let diffCursor = 1; // index into difficultyChoices
+  let endCursor = 0;  // 0 = "Play Again", 1 = "Change Difficulty"
+  let titlePhase = 0; // for title screen animation
+  let titleTimer = 0;
+  let starField = [];
 
-  var selectedColor = 1;
-  var cursorRow = 0;
-  var cursorCol = 0;
-  var paletteCursor = 0;
-
-  // Input focus: "grid" or "palette"
-  var inputFocus = "grid";
-
-  var totalCells = 81;
-  var filledCells = 0;
-  var difficultyCursor = 1; // start at Medium
-
-  // Flash effect for invalid placement
-  var flashCell = null;
-  var flashTimer = 0;
-
-  // ---- Sudoku Generation ----
-
-  function isValid(board, row, col, num) {
-    for (var c = 0; c < 9; c++) { if (board[row][c] === num) return false; }
-    for (var r = 0; r < 9; r++) { if (board[r][col] === num) return false; }
-    var br = Math.floor(row / 3) * 3;
-    var bc = Math.floor(col / 3) * 3;
-    for (var i = br; i < br + 3; i++) {
-      for (var j = bc; j < bc + 3; j++) {
-        if (board[i][j] === num) return false;
-      }
+  // ── Boot Screen ─────────────────────────────────────────
+  // Draw stars for boot/title background
+  function initStars() {
+    starField = [];
+    for (let i = 0; i < 80; i++) {
+      starField.push({
+        x: Math.random(),
+        y: Math.random(),
+        r: Math.random() * 1.5 + 0.5,
+        speed: Math.random() * 0.3 + 0.1,
+        phase: Math.random() * Math.PI * 2,
+      });
     }
+  }
+  initStars();
+
+  function drawStars(t) {
+    for (const s of starField) {
+      const a = 0.4 + 0.6 * Math.abs(Math.sin(t * s.speed + s.phase));
+      ctx.globalAlpha = a;
+      ctx.fillStyle = C.white;
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.r * (W / 800), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Gem Drawing Functions ───────────────────────────────
+  // Each gem is drawn at center (cx, cy) with radius r
+  function drawGem(cx, cy, r, gemNum, alpha) {
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    const c = GEM_COLORS[gemNum - 1];
+    ctx.fillStyle = c;
+    ctx.strokeStyle = C.white;
+    ctx.lineWidth = Math.max(1, r * 0.1);
+
+    switch (gemNum) {
+      case 1: drawDiamond(cx, cy, r); break;
+      case 2: drawCircle(cx, cy, r); break;
+      case 3: drawTriangle(cx, cy, r); break;
+      case 4: drawStar5(cx, cy, r); break;
+      case 5: drawHexagon(cx, cy, r); break;
+      case 6: drawPentagon(cx, cy, r); break;
+      case 7: drawCross(cx, cy, r); break;
+      case 8: drawHeart(cx, cy, r); break;
+      case 9: drawCrescent(cx, cy, r); break;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDiamond(cx, cy, r) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r * 0.7, cy);
+    ctx.lineTo(cx, cy + r);
+    ctx.lineTo(cx - r * 0.7, cy);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx, cy - r * 0.3, r * 0.25);
+  }
+
+  function drawCircle(cx, cy, r) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.8, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx - r * 0.25, cy - r * 0.25, r * 0.2);
+  }
+
+  function drawTriangle(cx, cy, r) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 0.85);
+    ctx.lineTo(cx + r * 0.8, cy + r * 0.55);
+    ctx.lineTo(cx - r * 0.8, cy + r * 0.55);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx, cy - r * 0.1, r * 0.18);
+  }
+
+  function drawStar5(cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? r * 0.85 : r * 0.38;
+      const a = (Math.PI * i) / 5 - Math.PI / 2;
+      ctx.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+    }
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx, cy - r * 0.15, r * 0.15);
+  }
+
+  function drawHexagon(cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * i) / 3 - Math.PI / 6;
+      ctx.lineTo(cx + Math.cos(a) * r * 0.82, cy + Math.sin(a) * r * 0.82);
+    }
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx - r * 0.2, cy - r * 0.25, r * 0.18);
+  }
+
+  function drawPentagon(cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+      ctx.lineTo(cx + Math.cos(a) * r * 0.82, cy + Math.sin(a) * r * 0.82);
+    }
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx, cy - r * 0.22, r * 0.18);
+  }
+
+  function drawCross(cx, cy, r) {
+    const t = r * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(cx - t, cy - r * 0.75);
+    ctx.lineTo(cx + t, cy - r * 0.75);
+    ctx.lineTo(cx + r * 0.75, cy - t);
+    ctx.lineTo(cx + r * 0.75, cy + t);
+    ctx.lineTo(cx + t, cy + r * 0.75);
+    ctx.lineTo(cx - t, cy + r * 0.75);
+    ctx.lineTo(cx - r * 0.75, cy + t);
+    ctx.lineTo(cx - r * 0.75, cy - t);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx, cy, r * 0.15);
+  }
+
+  function drawHeart(cx, cy, r) {
+    const s = r * 0.018;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + r * 0.65);
+    ctx.bezierCurveTo(cx - r * 1.2, cy - r * 0.3, cx - r * 0.5, cy - r * 1.1, cx, cy - r * 0.35);
+    ctx.bezierCurveTo(cx + r * 0.5, cy - r * 1.1, cx + r * 1.2, cy - r * 0.3, cx, cy + r * 0.65);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    drawGemHighlight(cx - r * 0.25, cy - r * 0.15, r * 0.18);
+  }
+
+  function drawCrescent(cx, cy, r) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.8, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // cut out the inner crescent
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.4, cy - r * 0.1, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    drawGemHighlight(cx - r * 0.3, cy - r * 0.25, r * 0.15);
+  }
+
+  function drawGemHighlight(x, y, r) {
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── Sudoku Generator ────────────────────────────────────
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function isValid(grid, row, col, val) {
+    for (let i = 0; i < 9; i++) {
+      if (grid[row][i] === val) return false;
+      if (grid[i][col] === val) return false;
+    }
+    const br = Math.floor(row / 3) * 3;
+    const bc = Math.floor(col / 3) * 3;
+    for (let r = br; r < br + 3; r++)
+      for (let c = bc; c < bc + 3; c++)
+        if (grid[r][c] === val) return false;
     return true;
   }
 
-  function solveSudoku(board) {
-    for (var r = 0; r < 9; r++) {
-      for (var c = 0; c < 9; c++) {
-        if (board[r][c] === 0) {
-          var nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-          shuffle(nums);
-          for (var n = 0; n < nums.length; n++) {
-            if (isValid(board, r, c, nums[n])) {
-              board[r][c] = nums[n];
-              if (solveSudoku(board)) return true;
-              board[r][c] = 0;
+  function solveSudoku(grid) {
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (grid[r][c] === 0) {
+          const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+          for (const v of nums) {
+            if (isValid(grid, r, c, v)) {
+              grid[r][c] = v;
+              if (solveSudoku(grid)) return true;
+              grid[r][c] = 0;
             }
           }
           return false;
@@ -138,776 +266,776 @@
     return true;
   }
 
-  function generateSolvedBoard() {
-    var board = [];
-    for (var i = 0; i < 9; i++) {
-      board[i] = [];
-      for (var j = 0; j < 9; j++) { board[i][j] = 0; }
-    }
-    solveSudoku(board);
-    return board;
-  }
+  function generatePuzzle(diff) {
+    // Create empty grid
+    const grid = Array.from({ length: 9 }, () => Array(9).fill(0));
+    solveSudoku(grid);
 
-  function shuffle(arr) {
-    for (var i = arr.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
-    }
-  }
+    // Copy solution
+    puzzle = grid.map(r => [...r]);
+    board = grid.map(r => [...r]);
+    given = Array.from({ length: 9 }, () => Array(9).fill(true));
 
-  function createPuzzle(solved, removedCount) {
-    var puzzle = [];
-    for (var r = 0; r < 9; r++) {
-      puzzle[r] = [];
-      for (var c = 0; c < 9; c++) { puzzle[r][c] = solved[r][c]; }
-    }
-    var positions = [];
-    for (var i = 0; i < 81; i++) {
-      positions.push([Math.floor(i / 9), i % 9]);
-    }
-    shuffle(positions);
-    var removed = 0;
-    for (var k = 0; k < positions.length && removed < removedCount; k++) {
-      puzzle[positions[k][0]][positions[k][1]] = 0;
+    // Remove cells based on difficulty
+    const removals = { EASY: 30, MEDIUM: 45, HARD: 56 };
+    const removeCount = removals[diff] || 45;
+    totalEmpty = removeCount;
+
+    const positions = shuffle(
+      Array.from({ length: 81 }, (_, i) => [Math.floor(i / 9), i % 9])
+    );
+
+    let removed = 0;
+    for (const [r, c] of positions) {
+      if (removed >= removeCount) break;
+      board[r][c] = 0;
+      given[r][c] = false;
       removed++;
     }
-    return puzzle;
-  }
 
-  function initGame() {
-    solvedBoard = generateSolvedBoard();
-    puzzleBoard = createPuzzle(solvedBoard, DIFF_CONFIG[difficulty].removed);
-    initialBoard = [];
-    cellGrid = [];
-    filledCells = 0;
-    for (var r = 0; r < 9; r++) {
-      initialBoard[r] = [];
-      cellGrid[r] = [];
-      for (var c = 0; c < 9; c++) {
-        initialBoard[r][c] = puzzleBoard[r][c];
-        cellGrid[r][c] = puzzleBoard[r][c];
-        if (puzzleBoard[r][c] !== 0) filledCells++;
+    // Count already filled
+    filledCount = 81 - totalEmpty;
+    cursorRow = 0;
+    cursorCol = 0;
+    selectedGem = 1;
+
+    // Move cursor to first empty cell
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (!given[r][c]) {
+          cursorRow = r;
+          cursorCol = c;
+          r = 9; break;
+        }
       }
     }
-    cursorRow = 0; cursorCol = 0;
-    for (var rr = 0; rr < 9; rr++) {
-      for (var cc = 0; cc < 9; cc++) {
-        if (puzzleBoard[rr][cc] === 0) { cursorRow = rr; cursorCol = cc; break; }
-      }
-    }
-    selectedColor = 1;
-    paletteCursor = 0;
-    inputFocus = "grid";
-    flashCell = null;
-    flashTimer = 0;
   }
 
-  // ---- Layout Calculation ----
-
-  function recalcLayout() {
-    var size = Math.min(window.innerWidth, window.innerHeight);
-    canvas.width = size;
-    canvas.height = size;
-    var s = size;
-
-    var topBarH = s * 0.07;
-    var boardSize = s * 0.65;
-    var gap = s * 0.025;
-    var paletteH = s * 0.22;
-
-    var boardX = (s - boardSize) / 2;
-    var boardY = topBarH;
-    var cellSize = boardSize / 9;
-    var paletteY = boardY + boardSize + gap;
-    var palBlockW = (s * 0.82) / 9;
-    var palBlockH = paletteH * 0.65;
-    var palXStart = (s - 9 * palBlockW) / 2;
-
-    window._layout = {
-      s: s, topBarH: topBarH,
-      boardX: boardX, boardY: boardY,
-      boardSize: boardSize, cellSize: cellSize,
-      gap: gap, paletteY: paletteY, paletteH: paletteH,
-      palBlockW: palBlockW, palBlockH: palBlockH, palXStart: palXStart
-    };
+  function checkComplete() {
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 9; c++)
+        if (board[r][c] !== puzzle[r][c]) return false;
+    return true;
   }
 
-  // ---- Drawing Helpers ----
-
-  function drawRect(x, y, w, h, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
+  function countFilled() {
+    let n = 0;
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 9; c++)
+        if (board[r][c] !== 0) n++;
+    return n;
   }
 
-  function drawRoundRect(x, y, w, h, r, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, typeof r === "number" ? r : r[0]);
-    ctx.fill();
-  }
-
-  function drawText(text, x, y, fontSize, color, align) {
-    ctx.fillStyle = color;
-    ctx.font = "bold " + fontSize + 'px "Courier New", monospace';
+  // ── Drawing Helpers ─────────────────────────────────────
+  function drawText(text, x, y, size, color, align) {
+    ctx.fillStyle = color || C.white;
+    ctx.font = `bold ${size}px monospace`;
     ctx.textAlign = align || "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, x, y);
   }
 
-  function drawTextOutline(text, x, y, fontSize, outlineColor, fillColor, align) {
-    ctx.font = "bold " + fontSize + 'px "Courier New", monospace';
+  function drawTextStroke(text, x, y, size, fillColor, strokeColor, align) {
+    ctx.font = `bold ${size}px monospace`;
     ctx.textAlign = align || "center";
     ctx.textBaseline = "middle";
-    ctx.strokeStyle = outlineColor;
-    ctx.lineWidth = Math.max(2, fontSize / 8);
+    ctx.strokeStyle = strokeColor || C.black;
+    ctx.lineWidth = Math.max(2, size * 0.08);
     ctx.strokeText(text, x, y);
-    ctx.fillStyle = fillColor;
+    ctx.fillStyle = fillColor || C.white;
     ctx.fillText(text, x, y);
   }
 
-  function drawScanlines() {
-    ctx.fillStyle = "rgba(0,0,0,0.055)";
-    for (var i = 0; i < window._layout.s; i += 3) {
-      ctx.fillRect(0, i, window._layout.s, 1);
-    }
+  function drawButton(text, x, y, w, h, selected) {
+    ctx.fillStyle = selected ? C.blue : C.navy;
+    ctx.strokeStyle = selected ? C.white : C.ltBlue;
+    ctx.lineWidth = selected ? 3 : 2;
+
+    // Rounded rect
+    const rad = Math.min(h * 0.2, 12);
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    const fontSize = Math.min(h * 0.45, w * 0.07, 28);
+    drawText(text, x + w / 2, y + h / 2, fontSize, selected ? C.white : C.ltBlue);
   }
 
-  function drawCorners(color) {
-    var L = window._layout;
-    var cs = L.s * 0.06;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(2, L.s * 0.004);
-    // TL
-    ctx.beginPath(); ctx.moveTo(L.s * 0.05, L.s * 0.05 + cs); ctx.lineTo(L.s * 0.05, L.s * 0.05); ctx.lineTo(L.s * 0.05 + cs, L.s * 0.05); ctx.stroke();
-    // TR
-    ctx.beginPath(); ctx.moveTo(L.s * 0.95 - cs, L.s * 0.05); ctx.lineTo(L.s * 0.95, L.s * 0.05); ctx.lineTo(L.s * 0.95, L.s * 0.05 + cs); ctx.stroke();
-    // BL
-    ctx.beginPath(); ctx.moveTo(L.s * 0.05, L.s * 0.95 - cs); ctx.lineTo(L.s * 0.05, L.s * 0.95); ctx.lineTo(L.s * 0.05 + cs, L.s * 0.95); ctx.stroke();
-    // BR
-    ctx.beginPath(); ctx.moveTo(L.s * 0.95 - cs, L.s * 0.95); ctx.lineTo(L.s * 0.95, L.s * 0.95); ctx.lineTo(L.s * 0.95, L.s * 0.95 - cs); ctx.stroke();
+  // ── Screen: BOOT ────────────────────────────────────────
+  function drawBoot(t) {
+    ctx.fillStyle = C.black;
+    ctx.fillRect(0, 0, W, H);
+    drawStars(t);
+
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2);
+    const fontSize = W * 0.06;
+    drawText("TAP OR PRESS ANY KEY", W / 2, H * 0.75, fontSize,
+      C.gray, "center");
+
+    // Draw a big gem in center
+    const gemR = W * 0.08;
+    drawGem(W / 2, H * 0.35, gemR, Math.floor(t * 1.5) % 9 + 1);
   }
 
-  function drawGridPattern() {
-    var L = window._layout;
-    ctx.strokeStyle = "rgba(49,162,242,0.07)";
-    ctx.lineWidth = 1;
-    var step = L.s * 0.04;
-    for (var i = 0; i < L.s; i += step) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, L.s); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(L.s, i); ctx.stroke();
+  // ── Screen: TITLE ───────────────────────────────────────
+  function drawTitle(t) {
+    ctx.fillStyle = C.black;
+    ctx.fillRect(0, 0, W, H);
+    drawStars(t);
+
+    // Animated gems falling
+    for (let i = 0; i < 12; i++) {
+      const gy = ((t * 40 + i * 70) % (H + 100)) - 50;
+      const gx = W * (0.1 + (i % 4) * 0.25);
+      const gr = W * 0.02;
+      ctx.globalAlpha = 0.3;
+      drawGem(gx, gy, gr, i % 9 + 1);
     }
-  }
-
-  // ---- Draw Title Screen ----
-
-  function drawTitleScreen() {
-    var L = window._layout;
-    var s = L.s;
-    var cx = s / 2;
-    var cy = s / 2;
-    var t = performance.now() * 0.001;
-
-    drawRect(0, 0, s, s, COLORS.navy);
-    drawGridPattern();
-
-    // Animated circuit lines
-    ctx.strokeStyle = "rgba(163,206,39,0.12)";
-    ctx.lineWidth = 2;
-    for (var i = 0; i < 5; i++) {
-      var sx = (Math.sin(t * 0.7 + i * 1.3) * 0.5 + 0.5) * s;
-      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, s); ctx.stroke();
-    }
-
-    // Title glow
-    var pulse = Math.sin(t * 2) * 0.3 + 0.7;
-    ctx.save();
-    ctx.shadowColor = COLORS.skyBlue;
-    ctx.shadowBlur = 20 * pulse;
-    ctx.fillStyle = "rgba(0,0,0,0)";
-    ctx.fillRect(cx - s * 0.28, cy - s * 0.18, s * 0.56, s * 0.22);
-    ctx.restore();
+    ctx.globalAlpha = 1;
 
     // Title
-    var titleSize = s * 0.14;
-    drawTextOutline("IKONOKU", cx, cy - s * 0.06, titleSize, COLORS.skyBlue, COLORS.white);
+    const titleSize = W * 0.12;
+    drawTextStroke("IKONOKU", W / 2, H * 0.3, titleSize, C.yellow, C.brown);
 
-    // Blinking prompt
-    if (Math.sin(t * 3) > 0) {
-      var promptSize = s * 0.03;
-      drawText("[ PRESS ANY KEY / TAP TO START ]", cx, cy + s * 0.18, promptSize, COLORS.skyBlue);
+    // Subtitle
+    const subSize = W * 0.035;
+    drawText("A Gem Puzzle Arcade", W / 2, H * 0.42, subSize, C.ltBlue);
+
+    // Gem showcase row
+    const gemR = W * 0.025;
+    const startX = W * 0.15;
+    const gemY = H * 0.55;
+    for (let i = 0; i < 9; i++) {
+      drawGem(startX + i * (W * 0.08), gemY, gemR, i + 1);
     }
 
-    // Color preview row
-    var blockSz = s * 0.035;
-    var blockY = cy + s * 0.35;
-    for (var b = 0; b < 9; b++) {
-      var bx = cx - (9 * blockSz) / 2 + b * blockSz + blockSz * 0.1;
-      var by = blockY + Math.sin(t * 2 + b * 0.5) * blockSz * 0.12;
-      var bs = blockSz * 0.8;
-      drawRoundRect(bx, by, bs, bs, bs * 0.15, GAME_COLORS[b]);
-    }
-
-    drawCorners(COLORS.skyBlue);
-    drawScanlines();
+    // Instructions
+    const instSize = W * 0.03;
+    drawText("Press ENTER or Tap to Start", W / 2, H * 0.75, instSize, C.gray);
   }
 
-  // ---- Draw Difficulty Screen ----
+  // ── Screen: DIFFICULTY ──────────────────────────────────
+  function drawDifficulty(t) {
+    ctx.fillStyle = C.black;
+    ctx.fillRect(0, 0, W, H);
+    drawStars(t);
 
-  function drawDifficultyScreen() {
-    var L = window._layout;
-    var s = L.s;
-    var cx = s / 2;
-    var cy = s / 2;
-    var t = performance.now() * 0.001;
+    const titleSize = W * 0.08;
+    drawTextStroke("SELECT DIFFICULTY", W / 2, H * 0.18, titleSize, C.yellow, C.brown);
 
-    drawRect(0, 0, s, s, COLORS.navy);
-    drawGridPattern();
+    // Difficulty buttons
+    const btnW = W * 0.5;
+    const btnH = H * 0.09;
+    const startY = H * 0.32;
+    const gap = btnH * 0.4;
 
-    // Title
-    var titleSize = s * 0.06;
-    drawTextOutline("SELECT DIFFICULTY", cx, cy - s * 0.28, titleSize, COLORS.iceBlue, COLORS.white);
+    const diffs = ["EASY", "MEDIUM", "HARD"];
+    const colors = [C.green, C.orange, C.red];
 
-    // Buttons
-    var btnW = s * 0.48;
-    var btnH = s * 0.08;
-    var btnGap = s * 0.035;
-    var startY = cy - s * 0.1;
+    for (let i = 0; i < 3; i++) {
+      const y = startY + i * (btnH + gap);
+      const selected = i === diffCursor;
+      const x = (W - btnW) / 2;
 
-    for (var i = 0; i < 3; i++) {
-      var bx = cx - btnW / 2;
-      var by = startY + i * (btnH + btnGap);
-      var isActive = (difficultyCursor === i);
+      ctx.fillStyle = selected ? colors[i] : C.navy;
+      ctx.strokeStyle = selected ? C.white : colors[i];
+      ctx.lineWidth = selected ? 3 : 2;
 
-      if (isActive) {
-        ctx.save();
-        ctx.shadowColor = DIFF_COLORS[i];
-        ctx.shadowBlur = 15;
-        ctx.fillStyle = "rgba(0,0,0,0)";
-        ctx.fillRect(bx - 3, by - 3, btnW + 6, btnH + 6);
-        ctx.restore();
-        drawRoundRect(bx, by, btnW, btnH, btnH * 0.3, DIFF_COLORS[i]);
-        drawText(DIFF_LABELS[i], cx, by + btnH / 2, s * 0.038, COLORS.black);
-      } else {
-        drawRoundRect(bx, by, btnW, btnH, btnH * 0.3, COLORS.slate);
-        drawText(DIFF_LABELS[i], cx, by + btnH / 2, s * 0.038, DIFF_COLORS[i]);
-        ctx.strokeStyle = DIFF_COLORS[i];
-        ctx.lineWidth = Math.max(1, s * 0.003);
-        ctx.beginPath();
-        ctx.roundRect(bx, by, btnW, btnH, btnH * 0.3);
-        ctx.stroke();
-      }
-      // Description
-      var descSize = s * 0.018;
-      drawText(DIFF_DESCS[i], cx, by + btnH + s * 0.015, descSize, COLORS.gray);
+      const rad = Math.min(btnH * 0.2, 12);
+      ctx.beginPath();
+      ctx.moveTo(x + rad, y);
+      ctx.lineTo(x + btnW - rad, y);
+      ctx.quadraticCurveTo(x + btnW, y, x + btnW, y + rad);
+      ctx.lineTo(x + btnW, y + btnH - rad);
+      ctx.quadraticCurveTo(x + btnW, y + btnH, x + btnW - rad, y + btnH);
+      ctx.lineTo(x + rad, y + btnH);
+      ctx.quadraticCurveTo(x, y + btnH, x, y + btnH - rad);
+      ctx.lineTo(x, y + rad);
+      ctx.quadraticCurveTo(x, y, x + rad, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      const fontSize = Math.min(btnH * 0.45, 28);
+      drawText(diffs[i], x + btnW / 2, y + btnH / 2, fontSize,
+        selected ? C.white : colors[i]);
     }
 
     // Hint
-    if (Math.sin(t * 3) > 0) {
-      var hintSize = s * 0.02;
-      drawText("[ ARROW KEYS / TAP — ENTER / TAP TO CONFIRM ]", cx, cy + s * 0.26, hintSize, COLORS.gray);
-    }
-
-    drawCorners(COLORS.skyBlue);
-    drawScanlines();
+    const hintSize = W * 0.028;
+    drawText("Use ↑↓ or Tap to select", W / 2, H * 0.72, hintSize, C.gray);
+    drawText("Press ENTER or Tap to confirm", W / 2, H * 0.78, hintSize, C.gray);
   }
 
-  // ---- Draw Game Board ----
+  // ── Screen: PLAY (Game) ─────────────────────────────────
+  function drawGame(t) {
+    ctx.fillStyle = C.black;
+    ctx.fillRect(0, 0, W, H);
 
-  function drawGameScreen() {
-    var L = window._layout;
-    var s = L.s;
-    var t = performance.now() * 0.001;
+    // Layout calculations
+    const gridPx = W * 0.62;
+    const cellSize = gridPx / 9;
+    const gridX = (W - gridPx) / 2;
+    const gridY = H * 0.08;
 
-    drawRect(0, 0, s, s, COLORS.navy);
+    // Top bar - title and score
+    const topSize = W * 0.035;
+    drawTextStroke("IKONOKU", W * 0.5, H * 0.03, W * 0.045, C.yellow, C.brown);
 
-    // ---- Top Info Bar ----
-    drawRect(0, 0, s, L.topBarH, COLORS.slate);
-    var infoSize = s * 0.02;
-    drawText("IKONOKU — " + DIFF_CONFIG[difficulty].label, s * 0.05, L.topBarH / 2, infoSize, COLORS.iceBlue, "left");
-    drawText("FILLED: " + filledCells + "/" + totalCells, s * 0.95, L.topBarH / 2, infoSize, COLORS.yellow, "right");
+    const progress = countFilled();
+    const progSize = W * 0.025;
+    drawText(`${progress}/81`, W * 0.85, H * 0.035, progSize, C.ltBlue);
 
-    // ---- Board Border ----
-    drawRect(L.boardX - 2, L.boardY - 2, L.boardSize + 4, L.boardSize + 4, COLORS.gray);
+    drawText(difficulty, W * 0.5, H * 0.055, topSize, C.gray);
 
-    // ---- Grid Cells ----
-    for (var r = 0; r < 9; r++) {
-      for (var c = 0; c < 9; c++) {
-        var x = L.boardX + c * L.cellSize;
-        var y = L.boardY + r * L.cellSize;
-        var cs = L.cellSize;
-        var val = cellGrid[r][c];
+    // Draw grid background
+    ctx.fillStyle = C.navy;
+    ctx.fillRect(gridX - 2, gridY - 2, gridPx + 4, gridPx + 4);
+
+    // Draw cells
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const x = gridX + c * cellSize;
+        const y = gridY + r * cellSize;
 
         // Cell background
-        if (val !== 0) {
-          drawRect(x, y, cs, cs, GAME_COLORS[val - 1]);
-          // Inner glow for filled cells
-          ctx.fillStyle = "rgba(255,255,255,0.08)";
-          ctx.fillRect(x + cs * 0.1, y + cs * 0.1, cs * 0.8, cs * 0.8);
+        if (board[r][c] !== 0) {
+          ctx.fillStyle = given[r][c] ? C.teal : C.navy;
         } else {
-          drawRect(x, y, cs, cs, ((r + c) % 2 === 0) ? COLORS.navy : "#152029");
+          // Checkerboard subtle
+          ctx.fillStyle = (r + c) % 2 === 0 ? C.navy : C.teal;
+        }
+        ctx.fillRect(x, y, cellSize, cellSize);
+
+        // Cursor highlight
+        if (r === cursorRow && c === cursorCol) {
+          ctx.strokeStyle = C.yellow;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
         }
 
-        // Thin cell border
-        ctx.strokeStyle = "rgba(157,157,157,0.4)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1);
+        // Draw gem if cell has value
+        if (board[r][c] !== 0) {
+          const gemR = cellSize * 0.35;
+          const alpha = given[r][c] ? 1 : 0.75;
+          drawGem(x + cellSize / 2, y + cellSize / 2, gemR, board[r][c], alpha);
+        }
       }
     }
 
-    // ---- Thick 3x3 box borders ----
-    var thick = Math.max(2, L.cellSize * 0.05);
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = thick;
-    // Vertical dividers
-    for (var vc = 0; vc <= 9; vc++) {
-      if (vc % 3 === 0) {
-        var vx = L.boardX + vc * L.cellSize;
-        ctx.beginPath(); ctx.moveTo(vx, L.boardY); ctx.lineTo(vx, L.boardY + L.boardSize); ctx.stroke();
-      }
-    }
-    // Horizontal dividers
-    for (var vh = 0; vh <= 9; vh++) {
-      if (vh % 3 === 0) {
-        var vy = L.boardY + vh * L.cellSize;
-        ctx.beginPath(); ctx.moveTo(L.boardX, vy); ctx.lineTo(L.boardX + L.boardSize, vy); ctx.stroke();
-      }
+    // Grid lines
+    ctx.strokeStyle = C.gray;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 9; i++) {
+      // Vertical
+      ctx.beginPath();
+      ctx.moveTo(gridX + i * cellSize, gridY);
+      ctx.lineTo(gridX + i * cellSize, gridY + gridPx);
+      ctx.stroke();
+      // Horizontal
+      ctx.beginPath();
+      ctx.moveTo(gridX, gridY + i * cellSize);
+      ctx.lineTo(gridX + gridPx, gridY + i * cellSize);
+      ctx.stroke();
     }
 
-    // ---- Invalid placement flash ----
-    if (flashCell && flashTimer > 0) {
-      var fx = L.boardX + flashCell.col * L.cellSize;
-      var fy = L.boardY + flashCell.row * L.cellSize;
-      var alpha = (flashTimer / 30) * 0.5;
-      ctx.fillStyle = "rgba(190,38,51," + alpha + ")";
-      ctx.fillRect(fx, fy, L.cellSize, L.cellSize);
+    // Thick 3x3 box lines
+    ctx.strokeStyle = C.white;
+    ctx.lineWidth = 3;
+    for (let i = 0; i <= 9; i += 3) {
+      ctx.beginPath();
+      ctx.moveTo(gridX + i * cellSize, gridY);
+      ctx.lineTo(gridX + i * cellSize, gridY + gridPx);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(gridX, gridY + i * cellSize);
+      ctx.lineTo(gridX + gridPx, gridY + i * cellSize);
+      ctx.stroke();
     }
 
-    // ---- Cursor Highlight ----
-    var cx = L.boardX + cursorCol * L.cellSize;
-    var cy = L.boardY + cursorRow * L.cellSize;
-    var pulseAlpha = 0.25 + Math.sin(t * 4) * 0.12;
-    ctx.fillStyle = "rgba(178,220,240," + pulseAlpha + ")";
-    ctx.fillRect(cx + 1, cy + 1, L.cellSize - 2, L.cellSize - 2);
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = Math.max(2, L.cellSize * 0.04);
-    ctx.strokeRect(cx + 1, cy + 1, L.cellSize - 2, L.cellSize - 2);
+    // Outer border
+    ctx.strokeStyle = C.yellow;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(gridX, gridY, gridPx, gridPx);
 
-    // ---- Color Palette ----
-    var palY = L.paletteY;
-    drawRect(0, palY, s, L.paletteH + 10, "#152029");
+    // ── Gem Palette (bottom) ──────────────────────────────
+    const palH = H * 0.18;
+    const palY = H - palH;
+    const palGemW = palH * 0.85;
+    const palTotalW = 9 * palGemW + 8 * (palGemW * 0.15);
+    const palX = (W - palTotalW) / 2;
 
-    // Palette label
-    var labelSize = s * 0.018;
-    var palLabel = "SELECT COLOR" + (inputFocus === "palette" ? " \u25B6" : "");
-    drawText(palLabel, s / 2, palY + s * 0.01, labelSize, inputFocus === "palette" ? COLORS.skyBlue : COLORS.gray);
+    // Palette background
+    ctx.fillStyle = C.navy;
+    ctx.fillRect(palX - 8, palY - 8, palTotalW + 16, palH + 16);
+    ctx.strokeStyle = C.blue;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(palX - 8, palY - 8, palTotalW + 16, palH + 16);
 
-    for (var i = 0; i < 9; i++) {
-      var bx = L.palXStart + i * L.palBlockW;
-      var by = palY + L.paletteH * 0.18;
-      var bw = L.palBlockW * 0.78;
-      var bh = L.palBlockH;
-      var blockX = bx + (L.palBlockW - bw) / 2;
+    // Draw gems in palette
+    for (let i = 0; i < 9; i++) {
+      const gx = palX + i * (palGemW + palGemW * 0.15) + palGemW / 2;
+      const gy = palY + palH * 0.38;
+      const gR = palGemW * 0.35;
 
-      if (i === paletteCursor) {
-        ctx.save();
-        ctx.shadowColor = GAME_COLORS[i];
-        ctx.shadowBlur = 15;
-        ctx.fillStyle = "rgba(0,0,0,0)";
-        ctx.fillRect(blockX - 3, by - 3, bw + 6, bh + 6);
-        ctx.restore();
-      }
-      drawRoundRect(blockX, by, bw, bh, bh * 0.15, GAME_COLORS[i]);
-
-      if (i === paletteCursor) {
-        ctx.strokeStyle = COLORS.white;
-        ctx.lineWidth = Math.max(2, s * 0.004);
+      if (i + 1 === selectedGem) {
+        // Selected glow
+        ctx.fillStyle = C.blue;
+        ctx.globalAlpha = 0.3;
         ctx.beginPath();
-        ctx.roundRect(blockX, by, bw, bh, bh * 0.15);
+        ctx.arc(gx, gy, gR * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.strokeStyle = C.yellow;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(gx, gy, gR * 1.2, 0, Math.PI * 2);
         ctx.stroke();
-        // Arrow above
-        var ax = blockX + bw / 2;
-        var ay = by - s * 0.012;
-        ctx.fillStyle = COLORS.white;
-        ctx.beginPath();
-        ctx.moveTo(ax, ay + 6); ctx.lineTo(ax - 5, ay); ctx.lineTo(ax + 5, ay);
-        ctx.closePath(); ctx.fill();
       }
 
-      // Number label
-      var numSize = s * 0.015;
-      drawText("" + (i + 1), blockX + bw / 2, by + bh + s * 0.012, numSize, COLORS.gray);
+      drawGem(gx, gy, gR, i + 1);
     }
 
-    // ---- Bottom controls hint ----
-    var hintSize = s * 0.015;
-    var hintY = palY + L.paletteH + s * 0.022;
-    if (hintY < s * 0.98) {
-      if (inputFocus === "palette") {
-        drawText("\u25B6 PALETTE: \u2190 \u2192 NAVIGATE — ENTER SELECT — TAB GRID", s / 2, hintY, hintSize, COLORS.skyBlue);
-      } else {
-        drawText("TAP TO PLACE \u00B7 \u2191 \u2193 \u2190 \u2192 NAVIGATE \u00B7 1-9 COLORS \u00B7 ENTER/SPACE PLACE \u00B7 TAB PALETTE", s / 2, hintY, hintSize, COLORS.gray);
-      }
-    }
+    // Eraser button
+    const eraserX = palX + palTotalW + palGemW * 0.3;
+    const eraserY = palY + 4;
+    const eraserW = palGemW * 1.1;
+    const eraserH = palH - 8;
 
-    drawScanlines();
+    ctx.fillStyle = C.navy;
+    ctx.strokeStyle = C.red;
+    ctx.lineWidth = 2;
+    ctx.fillRect(eraserX, eraserY, eraserW, eraserH);
+    ctx.strokeRect(eraserX, eraserY, eraserW, eraserH);
+
+    const eraserSize = eraserH * 0.22;
+    drawText("✕", eraserX + eraserW / 2, eraserY + eraserH * 0.4, eraserSize * 1.5, C.red);
+    drawText("ERA", eraserX + eraserW / 2, eraserY + eraserH * 0.75, eraserSize, C.gray);
   }
 
-  // ---- Draw Win Screen ----
+  // ── Screen: END ─────────────────────────────────────────
+  function drawEnd(t) {
+    ctx.fillStyle = C.black;
+    ctx.fillRect(0, 0, W, H);
+    drawStars(t);
 
-  function drawWinScreen() {
-    var L = window._layout;
-    var s = L.s;
-    var cx = s / 2;
-    var cy = s / 2;
-    var t = performance.now() * 0.001;
-
-    drawRect(0, 0, s, s, COLORS.navy);
-
-    // Floating color blocks (confetti)
-    for (var i = 0; i < 40; i++) {
-      var px = (Math.sin(t * 0.8 + i * 2.1) * 0.5 + 0.5) * s;
-      var py = ((t * 0.12 + i * 0.07) % 1.2) * s;
-      var sz = s * 0.015 + Math.sin(i * 1.5) * s * 0.004;
-      ctx.fillStyle = GAME_COLORS[i % 9];
-      ctx.globalAlpha = 0.35;
-      ctx.fillRect(px, py, sz, sz);
+    // Celebration gems
+    for (let i = 0; i < 20; i++) {
+      const gx = W * (0.1 + ((i * 37 + Math.floor(t * 20)) % 80) / 100);
+      const gy = H * (0.05 + ((i * 53 + Math.floor(t * 30)) % 90) / 100);
+      const gr = W * (0.012 + (i % 3) * 0.005);
+      ctx.globalAlpha = 0.4 + 0.3 * Math.abs(Math.sin(t * 2 + i));
+      drawGem(gx, gy, gr, i % 9 + 1);
     }
     ctx.globalAlpha = 1;
 
-    drawGridPattern();
-
-    // Win title
-    var pulse = Math.sin(t * 3) * 0.3 + 0.7;
-    ctx.save();
-    ctx.shadowColor = COLORS.lime;
-    ctx.shadowBlur = 25 * pulse;
-    ctx.fillStyle = "rgba(0,0,0,0)";
-    ctx.fillRect(cx - s * 0.25, cy - s * 0.22, s * 0.5, s * 0.14);
-    ctx.restore();
-
-    var titleSize = s * 0.09;
-    drawTextOutline("PUZZLE COMPLETE", cx, cy - s * 0.18, titleSize, COLORS.lime, COLORS.white);
+    // Title
+    const titleSize = W * 0.1;
+    drawTextStroke("PUZZLE COMPLETE!", W / 2, H * 0.2, titleSize, C.yellow, C.brown);
 
     // Stats
-    var statSize = s * 0.028;
-    drawText("DIFFICULTY: " + DIFF_CONFIG[difficulty].label, cx, cy - s * 0.03, statSize, COLORS.iceBlue);
-    drawText("CELLS FILLED: " + filledCells + "/" + totalCells, cx, cy + s * 0.03, statSize, COLORS.yellow);
+    const statSize = W * 0.045;
+    const finalFilled = countFilled();
+    drawText(`Gems Placed: ${finalFilled} / 81`, W / 2, H * 0.38, statSize, C.white);
+    drawText(`Difficulty: ${difficulty}`, W / 2, H * 0.47, statSize, C.ltBlue);
 
-    // Difficulty stars
-    var starCount = (difficulty === "Hard" ? 3 : difficulty === "Medium" ? 2 : 1);
-    var starSize = s * 0.04;
-    var starY = cy + s * 0.1;
-    for (var st = 0; st < 3; st++) {
-      var sx = cx - starSize + st * starSize * 1.3;
-      ctx.fillStyle = st < starCount ? COLORS.yellow : COLORS.gray;
-      ctx.globalAlpha = st < starCount ? 1 : 0.3;
-      ctx.font = starSize + 'px "Courier New", monospace';
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("\u2605", sx + starSize / 2, starY);
-    }
-    ctx.globalAlpha = 1;
-
-    // Color display
-    var dBlockW = s * 0.05;
-    var dBlockH = s * 0.03;
-    var dStartX = cx - (9 * dBlockW * 0.65) / 2;
-    var dY = cy + s * 0.17;
-    for (var d = 0; d < 9; d++) {
-      drawRoundRect(dStartX + d * dBlockW, dY, dBlockW * 0.6, dBlockH, dBlockH * 0.2, GAME_COLORS[d]);
+    // Show all gems
+    const gemR = W * 0.025;
+    const gemStartX = W * 0.2;
+    const gemY = H * 0.58;
+    for (let i = 0; i < 9; i++) {
+      drawGem(gemStartX + i * (W * 0.085), gemY, gemR, i + 1);
     }
 
-    // Play again
-    if (Math.sin(t * 3) > 0) {
-      var promptSize = s * 0.028;
-      drawText("[ TAP / PRESS ANY KEY TO PLAY AGAIN ]", cx, cy + s * 0.3, promptSize, COLORS.skyBlue);
+    // Buttons
+    const btnW = W * 0.5;
+    const btnH = H * 0.08;
+    const startY = H * 0.7;
+    const gap = btnH * 0.3;
+
+    const opts = ["PLAY AGAIN", "CHANGE DIFFICULTY"];
+    for (let i = 0; i < 2; i++) {
+      const y = startY + i * (btnH + gap);
+      const sel = i === endCursor;
+      const x = (W - btnW) / 2;
+
+      ctx.fillStyle = sel ? C.blue : C.navy;
+      ctx.strokeStyle = sel ? C.white : C.ltBlue;
+      ctx.lineWidth = sel ? 3 : 2;
+
+      const rad = Math.min(btnH * 0.2, 10);
+      ctx.beginPath();
+      ctx.moveTo(x + rad, y);
+      ctx.lineTo(x + btnW - rad, y);
+      ctx.quadraticCurveTo(x + btnW, y, x + btnW, y + rad);
+      ctx.lineTo(x + btnW, y + btnH - rad);
+      ctx.quadraticCurveTo(x + btnW, y + btnH, x + btnW - rad, y + btnH);
+      ctx.lineTo(x + rad, y + btnH);
+      ctx.quadraticCurveTo(x, y + btnH, x, y + btnH - rad);
+      ctx.lineTo(x, y + rad);
+      ctx.quadraticCurveTo(x, y, x + rad, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      const fontSize = Math.min(btnH * 0.4, 24);
+      drawText(opts[i], x + btnW / 2, y + btnH / 2, fontSize,
+        sel ? C.white : C.ltBlue);
     }
 
-    drawCorners(COLORS.lime);
-    drawScanlines();
+    const hintSize = W * 0.025;
+    drawText("Use ↑↓ to select, ENTER to confirm", W / 2, H * 0.92, hintSize, C.gray);
   }
 
-  // ---- Hit Testing ----
+  // ── Main Render Loop ────────────────────────────────────
+  let lastTime = 0;
 
-  function getGridCell(px, py) {
-    var L = window._layout;
-    if (px >= L.boardX && px < L.boardX + L.boardSize &&
-        py >= L.boardY && py < L.boardY + L.boardSize) {
-      var col = Math.floor((px - L.boardX) / L.cellSize);
-      var row = Math.floor((py - L.boardY) / L.cellSize);
-      if (row >= 0 && row < 9 && col >= 0 && col < 9) return { row: row, col: col };
+  function render() {
+    const t = (performance.now() - lastTime) / 1000;
+
+    switch (state) {
+      case "BOOT": drawBoot(t); break;
+      case "TITLE": drawTitle(t); break;
+      case "DIFFICULTY": drawDifficulty(t); break;
+      case "PLAY": drawGame(t); break;
+      case "END": drawEnd(t); break;
     }
+  }
+
+  function loop(ts) {
+    lastTime = ts;
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // ── Input Handling ──────────────────────────────────────
+  let eraserMode = false;
+
+  function getGridCell(clientX, clientY) {
+    if (state !== "PLAY") return null;
+    const gridPx = W * 0.62;
+    const cellSize = gridPx / 9;
+    const gridX = (W - gridPx) / 2;
+    const gridY = H * 0.08;
+
+    const col = Math.floor((clientX - gridX) / cellSize);
+    const row = Math.floor((clientY - gridY) / cellSize);
+
+    if (row >= 0 && row < 9 && col >= 0 && col < 9) return { row, col };
     return null;
   }
 
-  function getPaletteIndex(px, py) {
-    var L = window._layout;
-    for (var i = 0; i < 9; i++) {
-      var bx = L.palXStart + i * L.palBlockW;
-      var by = L.paletteY + L.paletteH * 0.18;
-      var bw = L.palBlockW * 0.78;
-      var bh = L.paletteH * 0.65;
-      var blockX = bx + (L.palBlockW - bw) / 2;
-      if (px >= blockX && px < blockX + bw && py >= by && py < by + bh) return i;
+  function getPaletteGem(clientX, clientY) {
+    if (state !== "PLAY") return -1;
+    const palH = H * 0.18;
+    const palY = H - palH;
+    const palGemW = palH * 0.85;
+    const palTotalW = 9 * palGemW + 8 * (palGemW * 0.15);
+    const palX = (W - palTotalW) / 2;
+
+    for (let i = 0; i < 9; i++) {
+      const gx = palX + i * (palGemW + palGemW * 0.15);
+      const gy = palY;
+      if (clientX >= gx && clientX < gx + palGemW && clientY >= gy && clientY < gy + palH) {
+        return i + 1;
+      }
     }
     return -1;
   }
 
-  function getDifficultyButton(py) {
-    var L = window._layout;
-    var s = L.s;
-    var cx = s / 2;
-    var btnW = s * 0.48;
-    var btnH = s * 0.08;
-    var btnGap = s * 0.035;
-    var startY = s / 2 - s * 0.1;
-    for (var i = 0; i < 3; i++) {
-      var by = startY + i * (btnH + btnGap);
-      if (py >= by && py < by + btnH) return i;
+  function isEraser(clientX, clientY) {
+    if (state !== "PLAY") return false;
+    const palH = H * 0.18;
+    const palY = H - palH;
+    const palGemW = palH * 0.85;
+    const palTotalW = 9 * palGemW + 8 * (palGemW * 0.15);
+    const palX = (W - palTotalW) / 2;
+
+    const eraserX = palX + palTotalW + palGemW * 0.3;
+    const eraserY = palY + 4;
+    const eraserW = palGemW * 1.1;
+    const eraserH = palH - 8;
+
+    return clientX >= eraserX && clientX < eraserX + eraserW &&
+           clientY >= eraserY && clientY < eraserY + eraserH;
+  }
+
+  function getDifficultyIndex(clientX, clientY) {
+    if (state !== "DIFFICULTY") return -1;
+    const btnH = H * 0.09;
+    const startY = H * 0.32;
+    const gap = btnH * 0.4;
+    const btnW = W * 0.5;
+
+    for (let i = 0; i < 3; i++) {
+      const y = startY + i * (btnH + gap);
+      const x = (W - btnW) / 2;
+      if (clientY >= y && clientY < y + btnH &&
+          clientX >= x && clientX < x + btnW) return i;
     }
     return -1;
   }
 
-  // ---- Game Actions ----
+  function getEndOptionIndex(clientX, clientY) {
+    if (state !== "END") return -1;
+    const btnW = W * 0.5;
+    const btnH = H * 0.08;
+    const startY = H * 0.7;
+    const gap = btnH * 0.3;
 
-  function placeColor() {
-    if (initialBoard[cursorRow][cursorCol] !== 0) return;
-    if (selectedColor < 1 || selectedColor > 9) return;
+    for (let i = 0; i < 2; i++) {
+      const y = startY + i * (btnH + gap);
+      const x = (W - btnW) / 2;
+      if (clientY >= y && clientY < y + btnH &&
+          clientX >= x && clientX < x + btnW) return i;
+    }
+    return -1;
+  }
 
-    if (!isValid(cellGrid, cursorRow, cursorCol, selectedColor)) {
-      // Invalid placement — flash red
-      flashCell = { row: cursorRow, col: cursorCol };
-      flashTimer = 30;
+  function placeGem() {
+    if (state !== "PLAY") return;
+    if (given[cursorRow][cursorCol]) return;
+    if (eraserMode) {
+      board[cursorRow][cursorCol] = 0;
+      eraserMode = false;
+      render();
       return;
     }
+    board[cursorRow][cursorCol] = selectedGem;
+    filledCount = countFilled();
+    render();
 
-    cellGrid[cursorRow][cursorCol] = selectedColor;
-    filledCells++;
-
-    // Advance cursor to next empty cell
-    var found = false;
-    for (var sr = cursorRow; sr < 9 && !found; sr++) {
-      for (var sc = (sr === cursorRow ? cursorCol : 0); sc < 9 && !found; sc++) {
-        if (initialBoard[sr][sc] === 0 && cellGrid[sr][sc] === 0) {
-          cursorRow = sr;
-          cursorCol = sc;
-          found = true;
-        }
-      }
-    }
-    // If no empty cell found below, search from top
-    if (!found) {
-      for (var sr2 = 0; sr2 < 9 && !found; sr2++) {
-        for (var sc2 = 0; sc2 < 9 && !found; sc2++) {
-          if (initialBoard[sr2][sc2] === 0 && cellGrid[sr2][sc2] === 0) {
-            cursorRow = sr2;
-            cursorCol = sc2;
-            found = true;
-          }
-        }
-      }
-    }
-
-    if (filledCells === totalCells) {
-      gameState = STATE_WIN;
+    if (checkComplete()) {
+      state = "END";
+      endCursor = 0;
+      render();
     }
   }
 
-  // ---- Input Handlers ----
-
-  function handlePointerDown(px, py) {
-    var L = window._layout;
-    if (!L.s) return;
-
-    if (gameState === STATE_TITLE) {
-      gameState = STATE_DIFFICULTY;
+  // Keyboard
+  document.addEventListener("keydown", (e) => {
+    // BOOT → TITLE
+    if (state === "BOOT") {
+      state = "TITLE";
+      render();
       return;
     }
 
-    if (gameState === STATE_DIFFICULTY) {
-      var btn = getDifficultyButton(py);
-      if (btn >= 0) {
-        difficultyCursor = btn;
-        difficulty = DIFF_KEYS[btn];
-        gameState = STATE_PLAYING;
-        initGame();
-      }
+    // TITLE → DIFFICULTY
+    if (state === "TITLE") {
+      state = "DIFFICULTY";
+      render();
       return;
     }
 
-    if (gameState === STATE_PLAYING) {
-      // Check palette
-      var palIdx = getPaletteIndex(px, py);
-      if (palIdx >= 0) {
-        paletteCursor = palIdx;
-        selectedColor = palIdx + 1;
-        inputFocus = "grid";
+    // DIFFICULTY
+    if (state === "DIFFICULTY") {
+      if (e.key === "ArrowUp") {
+        diffCursor = (diffCursor - 1 + 3) % 3;
+        render();
+        e.preventDefault();
         return;
       }
+      if (e.key === "ArrowDown") {
+        diffCursor = (diffCursor + 1) % 3;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Enter" || e.key === " ") {
+        difficulty = difficultyChoices[diffCursor];
+        generatePuzzle(difficulty);
+        state = "PLAY";
+        eraserMode = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
 
+    // PLAY
+    if (state === "PLAY") {
+      if (e.key === "ArrowUp") {
+        cursorRow = (cursorRow - 1 + 9) % 9;
+        eraserMode = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        cursorRow = (cursorRow + 1) % 9;
+        eraserMode = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        cursorCol = (cursorCol - 1 + 9) % 9;
+        eraserMode = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        cursorCol = (cursorCol + 1) % 9;
+        eraserMode = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Enter" || e.key === " ") {
+        placeGem();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (!given[cursorRow][cursorCol]) {
+          board[cursorRow][cursorCol] = 0;
+          render();
+        }
+        e.preventDefault();
+        return;
+      }
+      // Number keys 1-9
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 9) {
+        selectedGem = num;
+        eraserMode = false;
+        render();
+        return;
+      }
+      return;
+    }
+
+    // END
+    if (state === "END") {
+      if (e.key === "ArrowUp") {
+        endCursor = (endCursor - 1 + 2) % 2;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        endCursor = (endCursor + 1) % 2;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Enter" || e.key === " ") {
+        if (endCursor === 0) {
+          // Play again same difficulty
+          generatePuzzle(difficulty);
+          state = "PLAY";
+          eraserMode = false;
+        } else {
+          state = "DIFFICULTY";
+          diffCursor = 1;
+        }
+        render();
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
+  // Mouse
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (state === "BOOT") {
+      state = "TITLE";
+      render();
+      return;
+    }
+    if (state === "TITLE") {
+      state = "DIFFICULTY";
+      render();
+      return;
+    }
+    if (state === "DIFFICULTY") {
+      const idx = getDifficultyIndex(x, y);
+      if (idx >= 0) {
+        diffCursor = idx;
+        difficulty = difficultyChoices[diffCursor];
+        generatePuzzle(difficulty);
+        state = "PLAY";
+        eraserMode = false;
+        render();
+      }
+      return;
+    }
+    if (state === "PLAY") {
+      // Check eraser
+      if (isEraser(x, y)) {
+        eraserMode = !eraserMode;
+        render();
+        return;
+      }
+      // Check palette
+      const gem = getPaletteGem(x, y);
+      if (gem > 0) {
+        selectedGem = gem;
+        eraserMode = false;
+        render();
+        return;
+      }
       // Check grid
-      var cell = getGridCell(px, py);
+      const cell = getGridCell(x, y);
       if (cell) {
         cursorRow = cell.row;
         cursorCol = cell.col;
-        if (initialBoard[cell.row][cell.col] === 0 && selectedColor > 0) {
-          placeColor();
+        placeGem();
+      }
+      return;
+    }
+    if (state === "END") {
+      const idx = getEndOptionIndex(x, y);
+      if (idx >= 0) {
+        endCursor = idx;
+        if (endCursor === 0) {
+          generatePuzzle(difficulty);
+          state = "PLAY";
+          eraserMode = false;
+        } else {
+          state = "DIFFICULTY";
+          diffCursor = 1;
         }
-        return;
+        render();
       }
-      return;
     }
-
-    if (gameState === STATE_WIN) {
-      gameState = STATE_DIFFICULTY;
-      return;
-    }
-  }
-
-  function handleKeyDown(e) {
-    var key = e.key;
-
-    if (gameState === STATE_TITLE) {
-      gameState = STATE_DIFFICULTY;
-      e.preventDefault();
-      return;
-    }
-
-    if (gameState === STATE_DIFFICULTY) {
-      if (key === "ArrowUp") {
-        difficultyCursor = (difficultyCursor + 2) % 3;
-        e.preventDefault();
-      } else if (key === "ArrowDown") {
-        difficultyCursor = (difficultyCursor + 1) % 3;
-        e.preventDefault();
-      } else if (key === "ArrowLeft") {
-        difficultyCursor = (difficultyCursor + 2) % 3;
-        e.preventDefault();
-      } else if (key === "ArrowRight") {
-        difficultyCursor = (difficultyCursor + 1) % 3;
-        e.preventDefault();
-      } else if (key === "Enter" || key === " ") {
-        difficulty = DIFF_KEYS[difficultyCursor];
-        gameState = STATE_PLAYING;
-        initGame();
-        e.preventDefault();
-      }
-      return;
-    }
-
-    if (gameState === STATE_PLAYING) {
-      // Tab: toggle focus between grid and palette
-      if (key === "Tab") {
-        inputFocus = (inputFocus === "grid" ? "palette" : "grid");
-        e.preventDefault();
-        return;
-      }
-
-      if (inputFocus === "palette") {
-        if (key === "ArrowLeft" || key === "ArrowUp") {
-          paletteCursor = (paletteCursor + 8) % 9;
-          selectedColor = paletteCursor + 1;
-          e.preventDefault();
-        } else if (key === "ArrowRight" || key === "ArrowDown") {
-          paletteCursor = (paletteCursor + 1) % 9;
-          selectedColor = paletteCursor + 1;
-          e.preventDefault();
-        } else if (key === "Enter") {
-          selectedColor = paletteCursor + 1;
-          inputFocus = "grid";
-          e.preventDefault();
-        }
-        return;
-      }
-
-      // Grid focus
-      if (key === "ArrowUp") {
-        cursorRow = Math.max(0, cursorRow - 1);
-        e.preventDefault();
-      } else if (key === "ArrowDown") {
-        cursorRow = Math.min(8, cursorRow + 1);
-        e.preventDefault();
-      } else if (key === "ArrowLeft") {
-        cursorCol = Math.max(0, cursorCol - 1);
-        e.preventDefault();
-      } else if (key === "ArrowRight") {
-        cursorCol = Math.min(8, cursorCol + 1);
-        e.preventDefault();
-      } else if (key === "Enter" || key === " ") {
-        if (initialBoard[cursorRow][cursorCol] === 0) {
-          placeColor();
-        }
-        e.preventDefault();
-      } else if (key >= "1" && key <= "9") {
-        selectedColor = parseInt(key);
-        paletteCursor = selectedColor - 1;
-      } else if (key === "Backspace" || key === "Delete") {
-        // Clear a player-placed cell
-        if (initialBoard[cursorRow][cursorCol] === 0 && cellGrid[cursorRow][cursorCol] !== 0) {
-          cellGrid[cursorRow][cursorCol] = 0;
-          filledCells--;
-        }
-      }
-      return;
-    }
-
-    if (gameState === STATE_WIN) {
-      gameState = STATE_DIFFICULTY;
-      e.preventDefault();
-      return;
-    }
-  }
-
-  // ---- Event Listeners ----
-
-  function getCanvasCoords(cx, cy) {
-    var rect = canvas.getBoundingClientRect();
-    return {
-      x: (cx - rect.left) * (canvas.width / rect.width),
-      y: (cy - rect.top) * (canvas.height / rect.height)
-    };
-  }
-
-  canvas.addEventListener("mousedown", function (e) {
-    var c = getCanvasCoords(e.clientX, e.clientY);
-    handlePointerDown(c.x, c.y);
   });
 
-  canvas.addEventListener("touchstart", function (e) {
+  // Touch
+  canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
-    if (e.touches.length > 0) {
-      var c = getCanvasCoords(e.touches[0].clientX, e.touches[0].clientY);
-      handlePointerDown(c.x, c.y);
-    }
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+
+    // Simulate click
+    canvas.dispatchEvent(new MouseEvent("click", { clientX: touch.clientX, clientY: touch.clientY }));
   }, { passive: false });
 
-  document.addEventListener("keydown", handleKeyDown);
+  // Prevent scrolling on mobile
+  document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
-  window.addEventListener("resize", recalcLayout);
-
-  // ---- Game Loop ----
-
-  function gameLoop() {
-    recalcLayout();
-
-    // Update flash timer
-    if (flashTimer > 0) {
-      flashTimer--;
-      if (flashTimer <= 0) flashCell = null;
-    }
-
-    switch (gameState) {
-      case STATE_TITLE:    drawTitleScreen();    break;
-      case STATE_DIFFICULTY: drawDifficultyScreen(); break;
-      case STATE_PLAYING:  drawGameScreen();    break;
-      case STATE_WIN:      drawWinScreen();     break;
-    }
-
-    requestAnimationFrame(gameLoop);
-  }
-
-  // ---- Start ----
-  recalcLayout();
-  requestAnimationFrame(gameLoop);
+  // ── Start ───────────────────────────────────────────────
+  resize();
+  requestAnimationFrame(loop);
 
 })();

@@ -1,57 +1,54 @@
 # Ikonoku
 
-An arcade-style cyberpunk Sudoku game that replaces numbers with **9 unique color blocks**.
-
-## Overview
-
-Ikonoku is a logic puzzle where you fill a 9×9 grid with color blocks. Each row, column, and 3×3 section must contain every unique color block exactly once — no math required, just pure logic.
+An arcade-style Sudoku game that replaces numbers with unique gem icons.
 
 ## How to Play
 
-1. **Open** `index.html` in any modern browser
-2. **Title Screen** — Press a key, click, or tap to begin
-3. **Choose Difficulty** — Easy, Medium, or Hard
-4. **Select a Color** — Tap/click or use arrow keys + Enter to pick one of the 9 color blocks
-5. **Place It** — Tap/click a grid cell or navigate with arrow keys and press Enter/Space
-6. **Complete the Grid** — Fill all empty cells to win!
+1. **Open** `index.html` in a web browser
+2. **Press any key or tap** the screen to reach the title screen
+3. **Select a difficulty:**
+   - **Easy** — Fewer empty cells to fill
+   - **Medium** — Moderate challenge
+   - **Hard** — Maximum challenge
+4. **Fill the 9×9 grid** so every row, column, and 3×3 box contains all 9 gems exactly once
 
-## Controls
+### Controls
 
-| Action | Mouse/Touch | Keyboard |
+| Action | Keyboard | Touch/Mouse |
 |---|---|---|
-| Navigate cells | Click/tap cell | Arrow keys |
-| Select color | Click/tap color block | Arrow keys + Enter |
-| Place color | Click/tap cell after selecting color | Space / Enter |
-| Start game | Click/tap/press any key | Any key |
-| Confirm difficulty | Click/tap difficulty | Arrow keys + Enter |
+| Move cursor | Arrow keys | Tap a cell |
+| Select gem | Number keys 1–9 | Tap a gem in the palette |
+| Place gem | Enter or Space | Tap a cell |
+| Erase gem | Delete or Backspace | Tap Eraser then cell |
+| Start / Confirm | Any key | Tap screen |
 
-## Color Scheme
+## Rules
 
-Uses the **Arne16** palette exclusively:
+- Each row must contain all 9 unique gems exactly once
+- Each column must contain all 9 unique gems exactly once
+- Each 3×3 box must contain all 9 unique gems exactly once
+- Pre-filled cells (shown in a darker shade) cannot be changed
 
-| Hex | Role |
+## Color Palette
+
+Ikonoku uses the **Arne16** color scheme exclusively:
+
+| Color | Hex |
 |---|---|
-| `#000000` | Deep black |
-| `#9D9D9D` | Mid gray |
-| `#FFFFFF` | White |
-| `#BE2633` | Crimson (Game Color 1) |
-| `#E06F8B` | Rose (Game Color 2) |
-| `#493C2B` | Brown |
-| `#A46422` | Amber (Game Color 3) |
-| `#EB8931` | Orange (Game Color 4) |
-| `#F7E26B` | Yellow (Game Color 5) |
-| `#2F484E` | Slate (Background) |
-| `#44891A` | Green (Game Color 6) |
-| `#A3CE27` | Lime (Game Color 7) |
-| `#1B2632` | Navy (Dark BG) |
-| `#005784` | Steel Blue (Game Color 8) |
-| `#31A2F2` | Sky Blue (Game Color 9) |
-| `#B2DCF0` | Ice Blue |
-
-## Technical Details
-
-- **No external libraries** — pure HTML5 Canvas + JavaScript
-- **Responsive** — canvas scales to maximum browser fit while remaining square
-- **Mobile-friendly** — full touch support alongside keyboard controls
-- **Three difficulty levels** affecting the number of pre-filled cells
+| Black | `#000000` |
+| Gray | `#9D9D9D` |
+| White | `#FFFFFF` |
+| Red | `#BE2633` |
+| Pink | `#E06F8B` |
+| Brown | `#493C2B` |
+| Amber | `#A46422` |
+| Orange | `#EB8931` |
+| Yellow | `#F7E26B` |
+| Teal | `#2F484E` |
+| Green | `#44891A` |
+| Lime | `#A3CE27` |
+| Navy | `#1B2632` |
+| Dark Blue | `#005784` |
+| Blue | `#31A2F2` |
+| Light Blue | `#B2DCFF` |
 
